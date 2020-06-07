@@ -3,6 +3,7 @@ mod register;
 
 use crate::cartridge::Cartridge;
 use crate::cpu::addressing_mode::AddressingMode;
+use crate::joypad::Joypad;
 use crate::ppu::PPU;
 use register::{Flag, Registers};
 use std::cell::RefCell;
@@ -23,6 +24,8 @@ pub struct CPU {
     #[cfg(feature = "debug")]
     logger: std::fs::File,
     pub cycles: u64,
+    pub joypad_1: Joypad,
+    pub joypad_2: Joypad,
 }
 
 impl CPU {
@@ -38,6 +41,8 @@ impl CPU {
             #[cfg(feature = "debug")]
             logger: file,
             cycles: 7,
+            joypad_1: Joypad::default(),
+            joypad_2: Joypad::default(),
         };
         cpu.reset();
         cpu
@@ -302,7 +307,9 @@ impl CPU {
         match addr {
             0x0000..=0x1FFF => self.ram[addr as usize % 0x0800],
             0x2000..=0x3FFF => self.ppu.borrow_mut().read(addr % 0x08),
-            0x4000..=0x4017 => self.apu[addr as usize % 0x0018],
+            0x4000..=0x4015 => self.apu[addr as usize % 0x0018],
+            0x4016 => self.joypad_1.state() as u8,
+            0x4017 => self.joypad_2.state() as u8,
             0x4018..=0x401F => 0,
             0x4020..=0xFFFF => self.cartridge.borrow().read(addr),
         }
@@ -320,7 +327,7 @@ impl CPU {
         (hi << 8) | lo
     }
 
-    fn writeb(&mut self, addr: u16, val: u8) {
+    pub fn writeb(&mut self, addr: u16, val: u8) {
         if addr == 0x4014 {
             return self.dma(val);
         }
@@ -328,7 +335,8 @@ impl CPU {
         match addr {
             0x0000..=0x1FFF => self.ram[addr as usize % 0x0800] = val,
             0x2000..=0x3FFF => self.ppu.borrow_mut().write(addr % 0x08, val),
-            0x4000..=0x4017 => self.apu[addr as usize % 0x0018] = val,
+            0x4000..=0x4015 => self.apu[addr as usize % 0x0018] = val,
+            0x4016..=0x4017 => self.joypad_1.reset(),
             0x4018..=0x401F => {}
             0x4020..=0xFFFF => self.cartridge.borrow_mut().write(addr, val),
         }
